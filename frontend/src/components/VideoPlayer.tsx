@@ -21,19 +21,19 @@ export default function VideoPlayer() {
     setLoadingSections(true);
     try {
       const videoSections = await getVideoSections(currentVideo.id);
-      setSections(videoSections);
+      setSections(Array.isArray(videoSections) ? videoSections : []);
     } catch (error) {
       console.error('Failed to load sections:', error);
     } finally {
       setLoadingSections(false);
     }
-  }, [currentVideo, setSections]);
+  }, [currentVideo]);
 
   useEffect(() => {
-    if (currentVideo) {
+    if (currentVideo && (!sections || sections.length === 0)) {
       loadSections();
     }
-  }, [currentVideo, loadSections]);
+  }, [currentVideo?.id, sections?.length]);
 
   const handleRegenerateSections = async () => {
     if (!currentVideo) return;
@@ -41,7 +41,7 @@ export default function VideoPlayer() {
     setLoadingSections(true);
     try {
       const newSections = await regenerateSections(currentVideo.id);
-      setSections(newSections);
+      setSections(Array.isArray(newSections) ? newSections : []);
     } catch (error) {
       console.error('Failed to regenerate sections:', error);
     } finally {
@@ -63,6 +63,7 @@ export default function VideoPlayer() {
   };
 
   const getCurrentSection = () => {
+    if (!sections || !Array.isArray(sections)) return null;
     return sections.find(section => 
       currentTime >= section.start_time && currentTime <= section.end_time
     );
@@ -122,7 +123,7 @@ export default function VideoPlayer() {
           <div className="flex items-center gap-2">
             <List className="w-5 h-5 text-gray-600" />
             <h4 className="font-medium text-gray-800">Video Sections</h4>
-            {sections.length > 0 && (
+            {sections && sections.length > 0 && (
               <span className="text-sm text-gray-500">({sections.length})</span>
             )}
           </div>
@@ -142,7 +143,7 @@ export default function VideoPlayer() {
               <div className="animate-spin w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full mx-auto mb-2"></div>
               <p className="text-gray-600">Loading sections...</p>
             </div>
-          ) : sections.length > 0 ? (
+          ) : sections && sections.length > 0 ? (
             <div className="space-y-2">
               {sections.map((section) => {
                 const isActive = currentTime >= section.start_time && currentTime <= section.end_time;

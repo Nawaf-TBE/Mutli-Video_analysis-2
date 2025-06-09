@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Image, Clock, Grid } from 'lucide-react';
 import { useVideo } from '@/context/VideoContext';
-import { visualSearch, getFrames, extractFrames, generateEmbeddings, VisualSearchResult } from '@/lib/api';
+import { visualSearch, getFrames, extractFrames, generateEmbeddings, getEmbeddingsStatus, VisualSearchResult } from '@/lib/api';
 
 export default function VisualSearch() {
   const { state, setFrames } = useVideo();
@@ -14,6 +14,8 @@ export default function VisualSearch() {
   const [searchType, setSearchType] = useState<'text' | 'visual' | 'hybrid'>('hybrid');
   const [isExtractingFrames, setIsExtractingFrames] = useState(false);
   const [isGeneratingEmbeddings, setIsGeneratingEmbeddings] = useState(false);
+  const [embeddingsExist, setEmbeddingsExist] = useState(false);
+  const [isCheckingEmbeddings, setIsCheckingEmbeddings] = useState(false);
 
   const loadFrames = useCallback(async () => {
     if (!currentVideo) return;
@@ -24,13 +26,29 @@ export default function VisualSearch() {
     } catch (error) {
       console.error('Failed to load frames:', error);
     }
-  }, [currentVideo, setFrames]);
+  }, [currentVideo]);
+
+  const checkEmbeddingsStatus = useCallback(async () => {
+    if (!currentVideo) return;
+    
+    setIsCheckingEmbeddings(true);
+    try {
+      const status = await getEmbeddingsStatus(currentVideo.id);
+      setEmbeddingsExist(status.embeddings_exist || false);
+    } catch (error) {
+      console.error('Failed to check embeddings status:', error);
+      setEmbeddingsExist(false);
+    } finally {
+      setIsCheckingEmbeddings(false);
+    }
+  }, [currentVideo]);
 
   useEffect(() => {
     if (currentVideo) {
       loadFrames();
+      checkEmbeddingsStatus();
     }
-  }, [currentVideo, loadFrames]);
+  }, [currentVideo?.id]);
 
   const handleExtractFrames = async () => {
     if (!currentVideo) return;
@@ -52,6 +70,7 @@ export default function VisualSearch() {
     setIsGeneratingEmbeddings(true);
     try {
       await generateEmbeddings(currentVideo.id, true, true);
+      await checkEmbeddingsStatus(); // Refresh embeddings status
     } catch (error) {
       console.error('Failed to generate embeddings:', error);
     } finally {
@@ -124,14 +143,14 @@ export default function VisualSearch() {
           <div className="text-center p-4 bg-gray-50 rounded-lg">
             <h5 className="font-medium text-gray-700 mb-2">Embeddings</h5>
             <p className="text-2xl font-bold text-purple-600 mb-2">
-              {frames.length > 0 ? 'Ready' : 'None'}
+              {isCheckingEmbeddings ? 'Checking...' : embeddingsExist ? 'Ready' : 'None'}
             </p>
             <button
               onClick={handleGenerateEmbeddings}
               disabled={isGeneratingEmbeddings || frames.length === 0}
               className="w-full px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 text-sm"
             >
-              {isGeneratingEmbeddings ? 'Generating...' : 'Generate'}
+              {isGeneratingEmbeddings ? 'Generating...' : embeddingsExist ? 'Regenerate' : 'Generate'}
             </button>
           </div>
 
@@ -232,9 +251,20 @@ export default function VisualSearch() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {searchResults.map((result, index) => (
               <div key={`${result.frame_id}-${index}`} className="border border-gray-200 rounded-lg overflow-hidden">
-                {/* Frame Image Placeholder */}
+                {/* Frame Image */}
                 <div className="aspect-video bg-gray-100 flex items-center justify-center">
-                  <div className="text-center text-gray-500">
+                  <img
+                    src={`http://localhost:8000/api/frames/${result.path.replace('storage/', '')}`}
+                    alt={`Frame ${result.frame_id} at ${formatTime(result.timestamp)}`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      // Fallback to placeholder if image fails to load
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      target.nextElementSibling?.classList.remove('hidden');
+                    }}
+                  />
+                  <div className="text-center text-gray-500 hidden">
                     <Image className="w-8 h-8 mx-auto mb-2" aria-label={`Frame ${result.frame_id}`} />
                     <p className="text-sm">Frame {result.frame_id}</p>
                   </div>

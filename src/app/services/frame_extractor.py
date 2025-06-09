@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 from ..models.video import Video
 from ..models.frame import Frame
 from typing import List, Optional
-from pytube import YouTube
 import shutil
+import yt_dlp
 
 class FrameExtractorService:
     def __init__(self, db: Session):
@@ -21,26 +21,41 @@ class FrameExtractorService:
         self.temp_dir.mkdir(parents=True, exist_ok=True)
 
     def download_video(self, video_url: str, output_path: str) -> str:
-        """Download YouTube video to a temporary location."""
+        """Download YouTube video to a temporary location using yt-dlp."""
         try:
-            yt = YouTube(video_url)
+            # Configure yt-dlp options for downloading
+            ydl_opts = {
+                'outtmpl': os.path.join(output_path, 'video_%(id)s.%(ext)s'),
+                'format': 'best[ext=mp4]/best',  # Prefer mp4, fallback to best
+                'quiet': True,
+                'no_warnings': True,
+            }
             
-            # Get the best quality video stream
-            video_stream = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc().first()
-            
-            if not video_stream:
-                # Fallback to adaptive streams
-                video_stream = yt.streams.filter(adaptive=True, file_extension='mp4', only_video=True).order_by('resolution').desc().first()
-            
-            if not video_stream:
-                raise Exception("No suitable video stream found")
-            
-            # Download video
-            downloaded_file = video_stream.download(output_path=output_path)
-            return downloaded_file
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                # Extract info first to get the filename
+                info = ydl.extract_info(video_url, download=False)
+                video_id = info.get('id', 'unknown')
+                ext = info.get('ext', 'mp4')
+                
+                # Set the expected output filename
+                output_filename = os.path.join(output_path, f'video_{video_id}.{ext}')
+                
+                # Download the video
+                ydl.download([video_url])
+                
+                # Check if file exists and return the path
+                if os.path.exists(output_filename):
+                    return output_filename
+                else:
+                    # Fallback: look for any video file in the directory
+                    for file in os.listdir(output_path):
+                        if file.startswith('video_') and file.endswith(('.mp4', '.webm', '.mkv')):
+                            return os.path.join(output_path, file)
+                    
+                    raise Exception("Downloaded video file not found")
             
         except Exception as e:
-            raise Exception(f"Error downloading video: {str(e)}")
+            raise Exception(f"Error downloading video with yt-dlp: {str(e)}")
 
     def extract_frames_from_video(self, video_path: str, video_id: int, interval: int = 10) -> List[str]:
         """
