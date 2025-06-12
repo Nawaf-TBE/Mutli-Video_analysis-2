@@ -77,6 +77,7 @@ multi-video-analysis/
 - Node.js 18+
 - FFmpeg (for video processing)
 - OpenAI API key (for AI features)
+- **Google Gemini API key** (NEW - for advanced video analysis)
 
 ### Backend Setup
 
@@ -95,6 +96,7 @@ pip install -r requirements.txt
 ```bash
 export DATABASE_URL="sqlite:///./video_analysis.db"
 export OPENAI_API_KEY="your-openai-api-key"
+export GEMINI_API_KEY="your-gemini-api-key"
 ```
 
 4. **Start backend server:**
@@ -129,8 +131,10 @@ npm run dev
 
 ### 1. Video Upload & Processing
 - YouTube URL input with validation
-- Automatic transcript extraction (when available)
-- Fallback to dummy transcripts for testing
+- **🆕 Gemini Flash Video Analysis** - Direct video understanding (PRIMARY)
+- YouTube Transcript API extraction (fallback)
+- yt-dlp subtitle extraction (fallback)
+- Real video content analysis instead of metadata-based responses
 
 ### 2. AI Section Generation
 - Intelligent breakdown of video content
@@ -145,10 +149,11 @@ npm run dev
 - Conversation history tracking
 
 ### 4. Visual Search
-- **Frame Extraction:** Extract frames at regular intervals
-- **CLIP Embeddings:** Generate visual embeddings for frames
-- **Multi-modal Search:** Text, visual, or hybrid search modes
-- **Accurate Results:** Proper similarity scoring and frame display
+- **🎬 Frame Extraction:** Extract frames every 10 seconds from videos
+- **🧠 CLIP Embeddings:** Generate visual embeddings using OpenAI CLIP
+- **🔍 Multi-modal Search:** Text, visual, or hybrid search modes
+- **📊 Smart Results:** Similarity scoring with timestamp navigation
+- **🖼️ Frame Display:** Visual results with relevance scores
 
 ### 5. Video Player Integration
 - Embedded YouTube player with react-player
@@ -214,7 +219,8 @@ npm run dev
 ### Environment Variables
 ```bash
 DATABASE_URL=sqlite:///./video_analysis.db
-OPENAI_API_KEY=your-api-key-here
+OPENAI_API_KEY=your-openai-api-key
+GEMINI_API_KEY=your-gemini-api-key
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 

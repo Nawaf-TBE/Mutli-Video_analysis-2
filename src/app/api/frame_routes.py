@@ -1,17 +1,65 @@
-"""
-DEPRECATED: This file has been refactored into modular components.
-Use main_routes.py instead which imports from:
-- video_routes.py
-- chat_routes.py  
-- frame_routes.py
-"""
+"""Frame extraction and visual search routes."""
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
+from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
+from typing import Dict, List, Optional
+from ..db.database import get_db
+from ..models.frame import Frame
+from ..services.frame_service import FrameService
+from pydantic import BaseModel
+import tempfile
+import os
 
-# This file is kept temporarily for reference and will be removed after verification
-from .main_routes import router
+router = APIRouter(prefix="/frames", tags=["frames"])
 
-__all__ = ["router"]
+class FrameExtractionRequest(BaseModel):
+    interval: int = 10  # Default to 10 seconds
 
-@router.post("/videos/{video_id}/generate-embeddings")
+class EmbeddingGenerationRequest(BaseModel):
+    include_text: bool = True
+    include_visual: bool = True
+
+class TextSearchRequest(BaseModel):
+    query: str
+    video_id: Optional[int] = None
+    limit: int = 10
+
+class FrameResponse(BaseModel):
+    id: int
+    video_id: int
+    timestamp: float
+    path: str
+    
+    class Config:
+        from_attributes = True
+
+@router.get("/{video_id}")
+async def get_video_frames(
+    video_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get frames using simplified FrameService."""
+    try:
+        frame_service = FrameService(db)
+        frames = db.query(Frame).filter(Frame.video_id == video_id).all()
+        return frames or []
+    except Exception as e:
+        return []
+
+@router.post("/{video_id}/extract")
+async def extract_frames(
+    video_id: int,
+    db: Session = Depends(get_db)
+):
+    """Extract frames from video."""
+    try:
+        frame_service = FrameService(db)
+        result = frame_service.extract_frames(video_id, interval=10)
+        return {"message": "Frames extracted successfully", "count": result.get("count", 0)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{video_id}/embeddings")
 async def generate_embeddings(
     video_id: int,
     db: Session = Depends(get_db)
@@ -19,6 +67,7 @@ async def generate_embeddings(
     """Generate CLIP embeddings for video frames."""
     try:
         from ..services.simple_embeddings import SimpleEmbeddingService
+        from ..models.video import Video
         
         # Check if video exists
         video = db.query(Video).filter(Video.id == video_id).first()
@@ -53,7 +102,7 @@ async def generate_embeddings(
             "status": "error"
         }
 
-@router.get("/videos/{video_id}/embeddings-status")
+@router.get("/{video_id}/embeddings-status")
 async def get_embeddings_status(
     video_id: int,
     db: Session = Depends(get_db)
@@ -69,8 +118,6 @@ async def get_embeddings_status(
     except Exception as e:
         return {"error": f"Failed to check embeddings status: {str(e)}"}
 
-# Visual Search Endpoints
-
 @router.get("/visual-search/{video_id}")
 async def visual_search(
     video_id: int,
@@ -82,6 +129,8 @@ async def visual_search(
     """Visual search using CLIP embeddings."""
     try:
         from ..services.simple_embeddings import SimpleEmbeddingService
+        from ..services.langchain_service import LangChainVideoService
+        from ..models.video import Video
         
         # Check if video exists
         video = db.query(Video).filter(Video.id == video_id).first()
@@ -156,8 +205,23 @@ async def visual_search_by_image(
     image: UploadFile = File(...),
     db: Session = Depends(get_db)
 ) -> Dict:
-    """Image search - simplified for LangChain system."""
-    return {"message": "Image search not implemented", "results": []}
+    """Search by uploaded image."""
+    try:
+        # Save uploaded image temporarily
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
+            content = await image.read()
+            tmp_file.write(content)
+            tmp_path = tmp_file.name
+        
+        frame_service = FrameService(db)
+        results = frame_service.visual_search_by_image(video_id, tmp_path, limit)
+        
+        # Clean up temporary file
+        os.unlink(tmp_path)
+        
+        return {"results": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/visual-search/{video_id}/timestamp/{timestamp}")
 async def visual_search_by_timestamp(
@@ -167,29 +231,15 @@ async def visual_search_by_timestamp(
     limit: int = 10,
     db: Session = Depends(get_db)
 ) -> Dict:
-    """Timestamp search - simplified for LangChain system."""
-    return {"message": "Timestamp search not implemented", "results": []}
+    """Find visually similar frames around a timestamp."""
+    try:
+        frame_service = FrameService(db)
+        results = frame_service.find_similar_frames(video_id, timestamp, time_window, limit)
+        return {"results": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/visual-search/{video_id}/thumbnails")
-async def get_frame_thumbnails(
-    video_id: int,
-    frame_ids: str,  
-    size: str = "200x150",
-    db: Session = Depends(get_db)
-) -> Dict:
-    """Thumbnails - simplified for LangChain system."""
-    return {"message": "Thumbnails not implemented", "thumbnails": []}
-
-@router.get("/visual-search/{video_id}/summary")
-async def get_video_frame_summary(
-    video_id: int,
-    db: Session = Depends(get_db)
-) -> Dict:
-    """Frame summary - simplified for LangChain system."""
-    return {"message": "Frame summary not implemented", "summary": {}}
-
-# Static file serving for frames
-@router.get("/frames/storage/{file_path:path}")
+@router.get("/storage/{file_path:path}")
 async def serve_frame_image(file_path: str):
     """
     Serve frame images from the storage directory.
@@ -218,32 +268,4 @@ async def serve_frame_image(file_path: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error serving frame image: {str(e)}")
-
-# New LangChain-specific endpoints
-@router.post("/langchain/process/{video_id}")
-async def process_with_langchain(video_id: int, db: Session = Depends(get_db)):
-    """Process video with LangChain (transcript + embeddings)."""
-    video = db.query(Video).filter(Video.id == video_id).first()
-    if not video:
-        raise HTTPException(status_code=404, detail="Video not found")
-    
-    try:
-        langchain_service = LangChainVideoService(db)
-        result = langchain_service.process_transcript(video_id, video.url)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@router.get("/langchain/status/{video_id}")
-async def get_langchain_status(video_id: int, db: Session = Depends(get_db)):
-    """Check if LangChain processing is complete for a video."""
-    from pathlib import Path
-    
-    chroma_dir = Path(f"storage/chroma/video_{video_id}")
-    
-    return {
-        "video_id": video_id,
-        "processed": chroma_dir.exists(),
-        "chroma_path": str(chroma_dir) if chroma_dir.exists() else None
-    } 
+        raise HTTPException(status_code=500, detail=f"Error serving frame image: {str(e)}") 

@@ -254,7 +254,7 @@ export default function VisualSearch() {
                 {/* Frame Image */}
                 <div className="aspect-video bg-gray-100 flex items-center justify-center">
                   <img
-                    src={`http://localhost:8000/api/frames/${result.path.replace('storage/', '')}`}
+                    src={`http://localhost:8000/api/frames/storage/frames/${currentVideo.id}/${result.path.split('/').pop()}`}
                     alt={`Frame ${result.frame_id} at ${formatTime(result.timestamp)}`}
                     className="w-full h-full object-cover"
                     onError={(e) => {

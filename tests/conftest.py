@@ -8,9 +8,7 @@ from fastapi.testclient import TestClient
 
 from src.app.main import app
 from src.app.db.database import Base, get_db
-from src.app.models.video import Video
-from src.app.models.section import Section
-from src.app.models.frame import Frame
+from src.app.db.models import Video, Section, Frame
 
 # Test database configuration
 TEST_DATABASE_URL = "sqlite:///./test.db"
