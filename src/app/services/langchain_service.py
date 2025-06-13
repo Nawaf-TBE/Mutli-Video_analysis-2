@@ -78,7 +78,7 @@ class LangChainVideoService:
     def extract_subtitles_with_ytdlp(self, video_url: str, video_id: str) -> List[Dict[str, Any]]:
         """Extract subtitles with yt-dlp (delegated to transcript extractor)."""
         return self._service.transcript_extractor.extract_subtitles_with_ytdlp(video_url, video_id)
-    
+
     def parse_vtt_file(self, vtt_path: str) -> List[Dict[str, Any]]:
         """Parse VTT file (delegated to transcript parser)."""
         from .transcript.transcript_parser import TranscriptParser

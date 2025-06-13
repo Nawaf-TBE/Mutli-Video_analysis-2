@@ -7,9 +7,9 @@ from .frame_routes import router as frame_router
 router = APIRouter()
 
 # Include all route modules
-router.include_router(video_router, prefix="/api")
-router.include_router(chat_router, prefix="/api")
-router.include_router(frame_router, prefix="/api")
+router.include_router(video_router)
+router.include_router(chat_router)
+router.include_router(frame_router)
 
 @router.get("/")
 async def root():
