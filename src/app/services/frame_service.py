@@ -13,7 +13,7 @@ class FrameService:
         self.db = db
         self.frame_extractor = FrameExtractorService(db)
     
-    def extract_frames(self, video_id: int):
+    def extract_frames(self, video_id: int, interval: int = 10):
         """Extract frames from video using FrameExtractorService."""
         # Check if video exists
         video = self.db.query(Video).filter(Video.id == video_id).first()
@@ -21,7 +21,7 @@ class FrameService:
             return {"error": "Video not found", "extracted_count": 0}
         
         try:
-            frames = self.frame_extractor.process_video_frames(video_id, video.url, interval=10)
+            frames = self.frame_extractor.process_video_frames(video_id, video.url, interval=interval)
             return {
                 "message": "Frame extraction completed successfully",
                 "video_id": video_id,
