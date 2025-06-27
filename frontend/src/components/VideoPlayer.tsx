@@ -97,6 +97,16 @@ export default function VideoPlayer() {
             onPause={() => setPlaying(false)}
             onProgress={({ playedSeconds }) => setCurrentTime(playedSeconds)}
             onDuration={setDuration}
+            config={{
+              youtube: {
+                playerVars: {
+                  origin: window.location.origin,
+                  modestbranding: 1,
+                  rel: 0,
+                  showinfo: 0
+                }
+              }
+            }}
           />
         </div>
         

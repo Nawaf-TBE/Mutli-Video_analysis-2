@@ -90,6 +90,39 @@ async def get_sections(video_id: int, db: Session = Depends(get_db)):
     sections = db.query(Section).filter(Section.video_id == video_id).all()
     return sections
 
+@router.post("/{video_id}/regenerate-sections")
+async def regenerate_all_sections(video_id: int, db: Session = Depends(get_db)):
+    """Regenerate all sections for a video using LangChain."""
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    try:
+        langchain_service = LangChainVideoService(db)
+        sections_data = langchain_service.generate_sections(video_id)
+        
+        # Delete existing sections
+        db.query(Section).filter(Section.video_id == video_id).delete()
+        
+        # Create new sections
+        for i, section_data in enumerate(sections_data):
+            section = Section(
+                video_id=video_id,
+                title=section_data["title"],
+                start_time=section_data.get("start_time", i * 60),
+                end_time=section_data.get("end_time", (i + 1) * 60)
+            )
+            db.add(section)
+        
+        db.commit()
+        
+        # Return the new sections
+        new_sections = db.query(Section).filter(Section.video_id == video_id).all()
+        return new_sections
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @router.post("/sections/{section_id}/regenerate")
 async def regenerate_section(section_id: int, db: Session = Depends(get_db)):
     """Regenerate section using LangChain."""
