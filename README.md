@@ -2,6 +2,14 @@
 
 A streamlined, AI-powered video analysis platform with FastAPI backend and Next.js frontend, featuring RAG chat, visual search, and intelligent section generation.
 
+## 📅 Latest Updates
+
+**December 2024:**
+- ✅ Fixed visual search endpoint mapping
+- ✅ Increased API timeout for better performance
+- ✅ Resolved database permission issues
+- ✅ Enhanced error handling and logging
+
 ## 🚀 Project Overview
 
 This platform enables users to upload YouTube videos and perform advanced analysis including:
