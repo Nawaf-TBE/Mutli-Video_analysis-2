@@ -269,7 +269,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 ## 🤝 Contributing
 
-1. Fork the repository
+1. Fork the rtepository
 2. Create feature branch: `git checkout -b feature-name`
 3. Commit changes: `git commit -m 'Add feature'`
 4. Push to branch: `git push origin feature-name`
@@ -296,3 +296,5 @@ This project is available under the MIT License.
 <!-- Fifth safe commit: Another test comment for git practice. --> 
 
 <!-- Sixth safe commit: Yet another test comment for git practice. --> 
+
+<!-- Seventh safe commit: Final test comment for this session. --> 
