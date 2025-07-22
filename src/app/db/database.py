@@ -105,7 +105,7 @@ def create_database_engine() -> Engine:
         })
         logger.info("Configuring MySQL database with connection pooling")
     
-    else:
+else:
         # Generic configuration for other databases
         logger.warning(f"Using generic configuration for database: {config.database_url}")
     
@@ -199,7 +199,7 @@ def init_db() -> None:
         from ..models import video, section, frame  # noqa: F401
         
         logger.info("Creating database tables...")
-        Base.metadata.create_all(bind=engine) 
+    Base.metadata.create_all(bind=engine) 
         logger.info("Database tables created successfully")
         
         # Verify database connection
