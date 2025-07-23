@@ -105,7 +105,7 @@ def create_database_engine() -> Engine:
         })
         logger.info("Configuring MySQL database with connection pooling")
     
-else:
+    else:
         # Generic configuration for other databases
         logger.warning(f"Using generic configuration for database: {config.database_url}")
     
