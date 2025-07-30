@@ -35,3 +35,4 @@ class FrameService:
                 "extracted_count": 0,
                 "status": "error"
             } 
+
