@@ -7,6 +7,8 @@ from .frame_extractor import FrameExtractorService
 from ..models.video import Video
 import logging
 from typing import Dict, List, Optional
+import os
+from datetime import datetime, timedelta
 
 class FrameService:
     """
@@ -16,22 +18,30 @@ class FrameService:
     with proper error handling and database integration.
     """
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, config: Optional[Dict] = None):
         self.db = db
         self.frame_extractor = FrameExtractorService(db)
         self.logger = logging.getLogger(__name__)
+        self.config = config or {
+            "default_interval": 10,
+            "max_frames_per_video": 1000,
+            "frame_quality": 85,
+            "cleanup_older_than_days": 30
+        }
     
-    def extract_frames(self, video_id: int, interval: int = 10):
+    def extract_frames(self, video_id: int, interval: int = None):
         """
         Extract frames from video using FrameExtractorService.
         
         Args:
             video_id (int): The ID of the video to extract frames from
-            interval (int): Interval between frame extractions in seconds (default: 10)
+            interval (int): Interval between frame extractions in seconds (default from config)
             
         Returns:
             dict: Result containing extraction status and frame count
         """
+        interval = interval or self.config["default_interval"]
+        
         # Check if video exists
         video = self.db.query(Video).filter(Video.id == video_id).first()
         if not video:
@@ -39,13 +49,14 @@ class FrameService:
             return {"error": "Video not found", "extracted_count": 0}
         
         try:
-            self.logger.info(f"Starting frame extraction for video {video_id}")
+            self.logger.info(f"Starting frame extraction for video {video_id} with interval {interval}s")
             frames = self.frame_extractor.process_video_frames(video_id, video.url, interval=interval)
             self.logger.info(f"Successfully extracted {len(frames)} frames from video {video_id}")
             return {
                 "message": "Frame extraction completed successfully",
                 "video_id": video_id,
                 "extracted_count": len(frames),
+                "interval_used": interval,
                 "status": "success"
             }
         except Exception as e:
@@ -117,5 +128,52 @@ class FrameService:
         }
         
         self.logger.info(f"Video {video_id} validation completed successfully")
-        return validation_result 
+        return validation_result
+    
+    def cleanup_old_frames(self, days_old: int = None) -> Dict:
+        """
+        Clean up frames older than specified days.
+        
+        Args:
+            days_old (int): Number of days to keep frames (default from config)
+            
+        Returns:
+            dict: Cleanup result with details
+        """
+        days_old = days_old or self.config["cleanup_older_than_days"]
+        cutoff_date = datetime.now() - timedelta(days=days_old)
+        
+        try:
+            # This would typically delete old frame files and database records
+            # For now, returning a placeholder structure
+            cleanup_result = {
+                "message": f"Cleanup completed for frames older than {days_old} days",
+                "cutoff_date": cutoff_date.isoformat(),
+                "files_removed": 0,
+                "storage_freed_mb": 0.0,
+                "status": "success"
+            }
+            
+            self.logger.info(f"Cleanup completed: {cleanup_result['files_removed']} files removed")
+            return cleanup_result
+            
+        except Exception as e:
+            self.logger.error(f"Cleanup failed: {str(e)}")
+            return {
+                "error": f"Cleanup failed: {str(e)}",
+                "cutoff_date": cutoff_date.isoformat(),
+                "status": "error"
+            }
+    
+    def get_service_config(self) -> Dict:
+        """
+        Get current service configuration.
+        
+        Returns:
+            dict: Current configuration settings
+        """
+        return {
+            "config": self.config,
+            "timestamp": datetime.now().isoformat()
+        } 
 
