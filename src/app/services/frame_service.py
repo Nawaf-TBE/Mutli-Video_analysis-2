@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from .frame_extractor import FrameExtractorService
 from ..models.video import Video
 import logging
+from typing import Dict, List, Optional
 
 class FrameService:
     """
@@ -54,5 +55,67 @@ class FrameService:
                 "video_id": video_id,
                 "extracted_count": 0,
                 "status": "error"
-            } 
+            }
+    
+    def get_frame_statistics(self, video_id: int) -> Dict:
+        """
+        Get statistics about extracted frames for a video.
+        
+        Args:
+            video_id (int): The ID of the video to get statistics for
+            
+        Returns:
+            dict: Statistics about the frames for the video
+        """
+        try:
+            # This would typically query your frame storage/database
+            # For now, returning a placeholder structure
+            stats = {
+                "video_id": video_id,
+                "total_frames": 0,
+                "storage_size_mb": 0.0,
+                "average_frame_size_kb": 0.0,
+                "extraction_date": None,
+                "status": "not_implemented"
+            }
+            
+            self.logger.info(f"Retrieved frame statistics for video {video_id}")
+            return stats
+            
+        except Exception as e:
+            self.logger.error(f"Failed to get frame statistics for video {video_id}: {str(e)}")
+            return {
+                "error": f"Failed to get frame statistics: {str(e)}",
+                "video_id": video_id,
+                "status": "error"
+            }
+    
+    def validate_video_for_extraction(self, video_id: int) -> Dict:
+        """
+        Validate if a video is suitable for frame extraction.
+        
+        Args:
+            video_id (int): The ID of the video to validate
+            
+        Returns:
+            dict: Validation result with details
+        """
+        video = self.db.query(Video).filter(Video.id == video_id).first()
+        if not video:
+            return {
+                "valid": False,
+                "error": "Video not found",
+                "video_id": video_id
+            }
+        
+        # Add more validation logic here as needed
+        validation_result = {
+            "valid": True,
+            "video_id": video_id,
+            "video_url": video.url,
+            "message": "Video is ready for frame extraction"
+        }
+        
+        self.logger.info(f"Video {video_id} validation completed successfully")
+        return validation_result 
 
