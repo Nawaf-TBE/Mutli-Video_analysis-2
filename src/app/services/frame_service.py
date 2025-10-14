@@ -28,7 +28,7 @@ class FrameService:
             "frame_quality": 85,
             "cleanup_older_than_days": 30
         }
-    
+  
     def extract_frames(self, video_id: int, interval: int = None):
         """
         Extract frames from video using FrameExtractorService.
