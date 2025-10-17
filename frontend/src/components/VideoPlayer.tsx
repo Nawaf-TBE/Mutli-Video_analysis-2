@@ -1,19 +1,104 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import ReactPlayer from 'react-player';
 import { Play, RotateCcw, Clock, List } from 'lucide-react';
 import { useVideo } from '@/context/VideoContext';
 import { getVideoSections, regenerateSections } from '@/lib/api';
 
-export default function VideoPlayer() {
-  const { state, setSections } = useVideo();
-  const { currentVideo, sections } = state;
-  const [playing, setPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+interface Section {
+  id: number;
+  title: string;
+  start_time: number;
+  end_time: number;
+}
+
+interface VideoInfoProps {
+  title: string;
+  currentTime: number;
+  duration: number;
+  currentSection: Section | null;
+  formatTime: (seconds: number) => string;
+}
+
+interface SectionItemProps {
+  section: Section;
+  isActive: boolean;
+  onSeek: (time: number) => void;
+  formatTime: (seconds: number) => string;
+}
+
+const VideoInfo = memo(function VideoInfo({
+  title,
+  currentTime,
+  duration,
+  currentSection,
+  formatTime,
+}: VideoInfoProps) {
+  return (
+    <div className="p-4 border-b">
+      <h3 className="text-lg font-semibold text-gray-800 mb-2">{title}</h3>
+      <div className="flex items-center gap-4 text-sm text-gray-600">
+        <span className="flex items-center gap-1">
+          <Clock className="w-4 h-4" />
+          {formatTime(currentTime)} / {formatTime(duration)}
+        </span>
+        {currentSection && (
+          <span className="text-blue-600 font-medium">
+            Current: {currentSection.title}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+});
+
+const SectionItem = memo(function SectionItem({
+  section,
+  isActive,
+  onSeek,
+  formatTime,
+}: SectionItemProps) {
+  const handleClick = useCallback(() => {
+    onSeek(section.start_time);
+  }, [onSeek, section.start_time]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleClick();
+    }
+  }, [handleClick]);
+
+  return (
+    <div
+      className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+        isActive 
+          ? 'bg-blue-50 border-blue-200' 
+          : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+      }`}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+      role="button"
+      aria-label={`Go to section: ${section.title} at ${formatTime(section.start_time)}`}
+    >
+      <div className="flex items-center justify-between">
+        <h5 className={`font-medium ${isActive ? 'text-blue-800' : 'text-gray-800'}`}>
+          {section.title}
+        </h5>
+        <span className="text-sm text-gray-500">
+          {formatTime(section.start_time)} - {formatTime(section.end_time)}
+        </span>
+      </div>
+    </div>
+  );
+});
+
+// Custom hook for video sections management
+function useVideoSections(currentVideo: any) {
+  const { setSections } = useVideo();
   const [loadingSections, setLoadingSections] = useState(false);
-  const playerRef = useRef<ReactPlayer>(null);
 
   const loadSections = useCallback(async () => {
     if (!currentVideo) return;
@@ -27,15 +112,9 @@ export default function VideoPlayer() {
     } finally {
       setLoadingSections(false);
     }
-  }, [currentVideo]);
+  }, [currentVideo, setSections]);
 
-  useEffect(() => {
-    if (currentVideo && (!sections || sections.length === 0)) {
-      loadSections();
-    }
-  }, [currentVideo?.id, sections?.length]);
-
-  const handleRegenerateSections = async () => {
+  const handleRegenerateSections = useCallback(async () => {
     if (!currentVideo) return;
     
     setLoadingSections(true);
@@ -47,14 +126,68 @@ export default function VideoPlayer() {
     } finally {
       setLoadingSections(false);
     }
-  };
+  }, [currentVideo, setSections]);
 
-  const seekToTime = (time: number) => {
+  return { loadSections, regenerateSections, loadingSections };
+}
+
+// Custom hook for player state management
+function usePlayerState() {
+  const [playing, setPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const playerRef = useRef<ReactPlayer>(null);
+
+  const seekToTime = useCallback((time: number) => {
     if (playerRef.current) {
       playerRef.current.seekTo(time);
       setCurrentTime(time);
     }
+  }, []);
+
+  const handlePlay = useCallback(() => setPlaying(true), []);
+  const handlePause = useCallback(() => setPlaying(false), []);
+  const handleProgress = useCallback(({ playedSeconds }: { playedSeconds: number }) => {
+    setCurrentTime(playedSeconds);
+  }, []);
+  const handleDuration = useCallback((duration: number) => {
+    setDuration(duration);
+  }, []);
+
+  return {
+    playing,
+    currentTime,
+    duration,
+    playerRef,
+    seekToTime,
+    handlePlay,
+    handlePause,
+    handleProgress,
+    handleDuration,
   };
+}
+
+export default function VideoPlayer() {
+  const { state } = useVideo();
+  const { currentVideo, sections } = state;
+  const { loadSections, handleRegenerateSections, loadingSections } = useVideoSections(currentVideo);
+  const {
+    playing,
+    currentTime,
+    duration,
+    playerRef,
+    seekToTime,
+    handlePlay,
+    handlePause,
+    handleProgress,
+    handleDuration,
+  } = usePlayerState();
+
+  useEffect(() => {
+    if (currentVideo && (!sections || sections.length === 0)) {
+      loadSections();
+    }
+  }, [currentVideo?.id, sections?.length, loadSections]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -62,12 +195,14 @@ export default function VideoPlayer() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getCurrentSection = () => {
+  const getCurrentSection = useCallback(() => {
     if (!sections || !Array.isArray(sections)) return null;
     return sections.find(section => 
       currentTime >= section.start_time && currentTime <= section.end_time
-    );
-  };
+    ) || null;
+  }, [sections, currentTime]);
+
+  const currentSection = getCurrentSection();
 
   if (!currentVideo) {
     return (
@@ -93,10 +228,10 @@ export default function VideoPlayer() {
             height="100%"
             playing={playing}
             controls={true}
-            onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
-            onProgress={({ playedSeconds }) => setCurrentTime(playedSeconds)}
-            onDuration={setDuration}
+            onPlay={handlePlay}
+            onPause={handlePause}
+            onProgress={handleProgress}
+            onDuration={handleDuration}
             config={{
               youtube: {
                 playerVars: {
@@ -111,20 +246,13 @@ export default function VideoPlayer() {
         </div>
         
         {/* Video Info */}
-        <div className="p-4 border-b">
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">{currentVideo.title}</h3>
-          <div className="flex items-center gap-4 text-sm text-gray-600">
-            <span className="flex items-center gap-1">
-              <Clock className="w-4 h-4" />
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </span>
-            {getCurrentSection() && (
-              <span className="text-blue-600 font-medium">
-                Current: {getCurrentSection()?.title}
-              </span>
-            )}
-          </div>
-        </div>
+        <VideoInfo
+          title={currentVideo.title}
+          currentTime={currentTime}
+          duration={duration}
+          currentSection={currentSection}
+          formatTime={formatTime}
+        />
       </div>
 
       {/* Sections Panel */}
@@ -141,6 +269,7 @@ export default function VideoPlayer() {
             onClick={handleRegenerateSections}
             disabled={loadingSections}
             className="flex items-center gap-2 px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 disabled:opacity-50"
+            aria-label="Regenerate video sections"
           >
             <RotateCcw className={`w-4 h-4 ${loadingSections ? 'animate-spin' : ''}`} />
             Regenerate
@@ -154,29 +283,18 @@ export default function VideoPlayer() {
               <p className="text-gray-600">Loading sections...</p>
             </div>
           ) : sections && sections.length > 0 ? (
-            <div className="space-y-2">
+            <div className="space-y-2" role="list" aria-label="Video sections">
               {sections.map((section) => {
                 const isActive = currentTime >= section.start_time && currentTime <= section.end_time;
                 
                 return (
-                  <div
+                  <SectionItem
                     key={section.id}
-                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                      isActive 
-                        ? 'bg-blue-50 border-blue-200' 
-                        : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                    }`}
-                    onClick={() => seekToTime(section.start_time)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <h5 className={`font-medium ${isActive ? 'text-blue-800' : 'text-gray-800'}`}>
-                        {section.title}
-                      </h5>
-                      <span className="text-sm text-gray-500">
-                        {formatTime(section.start_time)} - {formatTime(section.end_time)}
-                      </span>
-                    </div>
-                  </div>
+                    section={section}
+                    isActive={isActive}
+                    onSeek={seekToTime}
+                    formatTime={formatTime}
+                  />
                 );
               })}
             </div>
