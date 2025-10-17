@@ -128,7 +128,7 @@ function useVideoSections(currentVideo: any) {
     }
   }, [currentVideo, setSections]);
 
-  return { loadSections, regenerateSections, loadingSections };
+  return { loadSections, handleRegenerateSections, loadingSections };
 }
 
 // Custom hook for player state management
