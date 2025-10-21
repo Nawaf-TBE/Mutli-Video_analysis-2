@@ -1,30 +1,129 @@
 """
 Vector store management for LangChain operations.
+
+This module provides comprehensive vector store management for video transcripts,
+including document processing, chunking strategies, and ChromaDB integration.
 """
 
 import os
 import shutil
+import logging
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
+from dataclasses import dataclass
+from enum import Enum
+
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain.docstore.document import Document
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
+
+class ChunkingStrategy(Enum):
+    """Strategies for text chunking."""
+    RECURSIVE = "recursive"
+    SENTENCE = "sentence"
+    PARAGRAPH = "paragraph"
+
+
+@dataclass
+class VectorStoreConfig:
+    """Configuration for vector store operations."""
+    chunk_size: int = 1000
+    chunk_overlap: int = 100
+    chunking_strategy: ChunkingStrategy = ChunkingStrategy.RECURSIVE
+    collection_name: str = "default_collection"
+    storage_base_path: str = "storage/chroma"
+    separators: List[str] = None
+    min_chunk_size: int = 50
+    max_chunk_size: int = 2000
+    
+    def __post_init__(self):
+        if self.separators is None:
+            self.separators = ["\n\n", "\n", ".", "!", "?", ",", " ", ""]
+
+
+@dataclass
+class ProcessingResult:
+    """Result of transcript processing."""
+    success: bool
+    message: str
+    video_id: int
+    segments_count: int
+    chunks_count: int
+    vectorstore_path: Optional[str] = None
+    processing_time: Optional[float] = None
+    error_message: Optional[str] = None
+
+
+@dataclass
+class DocumentMetadata:
+    """Standardized document metadata."""
+    video_id: int
+    start_time: float
+    duration: float
+    timestamp: str
+    source: str
+    chunk_id: Optional[int] = None
+    approximate_start_time: Optional[float] = None
+
 
 class VectorStoreManager:
-    """Manages vector stores for video transcripts."""
+    """
+    Manages vector stores for video transcripts.
     
-    def __init__(self):
-        # Initialize LangChain components
-        self.embeddings = OpenAIEmbeddings()
+    This class provides comprehensive vector store management including
+    document processing, chunking strategies, and ChromaDB integration.
+    """
+    
+    def __init__(self, config: Optional[VectorStoreConfig] = None):
+        """
+        Initialize the vector store manager.
         
-        # Text splitter for better chunking
-        self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=100,
-            separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""]
-        )
+        Args:
+            config: Optional configuration object. If None, uses default settings.
+        """
+        self.config = config or VectorStoreConfig()
+        
+        # Initialize components
+        self._initialize_embeddings()
+        self._initialize_text_splitter()
+        
+        logger.info(f"VectorStoreManager initialized with strategy: {self.config.chunking_strategy.value}")
+    
+    def _initialize_embeddings(self) -> None:
+        """Initialize the embeddings model."""
+        try:
+            self.embeddings = OpenAIEmbeddings()
+            logger.debug("Embeddings initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize embeddings: {e}")
+            raise RuntimeError(f"Failed to initialize embeddings: {e}")
+    
+    def _initialize_text_splitter(self) -> None:
+        """Initialize the text splitter based on configuration."""
+        try:
+            if self.config.chunking_strategy == ChunkingStrategy.RECURSIVE:
+                self.text_splitter = RecursiveCharacterTextSplitter(
+                    chunk_size=self.config.chunk_size,
+                    chunk_overlap=self.config.chunk_overlap,
+                    separators=self.config.separators
+                )
+            else:
+                # Default to recursive for now, can be extended
+                self.text_splitter = RecursiveCharacterTextSplitter(
+                    chunk_size=self.config.chunk_size,
+                    chunk_overlap=self.config.chunk_overlap,
+                    separators=self.config.separators
+                )
+            
+            logger.debug("Text splitter initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize text splitter: {e}")
+            raise RuntimeError(f"Failed to initialize text splitter: {e}")
     
     def process_transcript(self, video_id: int, segments: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Process transcript and create vector store."""
