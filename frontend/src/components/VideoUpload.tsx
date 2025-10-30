@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, memo } from 'react';
 import { Upload, Loader2, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
-import { uploadVideo, Video } from '@/lib/api';
+import { uploadVideo, type Video } from '@/lib/api';
 import { useVideo } from '@/context/VideoContext';
 
 export default function VideoUpload() {
