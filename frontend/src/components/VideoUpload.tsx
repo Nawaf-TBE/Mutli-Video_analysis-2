@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useCallback, memo } from 'react';
-import { Upload, Loader2, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
-import { uploadVideo, type Video } from '@/lib/api';
+import React, { useState } from 'react';
+import { Upload, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { uploadVideo } from '@/lib/api';
 import { useVideo } from '@/context/VideoContext';
 
 export default function VideoUpload() {
